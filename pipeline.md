@@ -187,14 +187,3 @@ rm *_hit_genes.txt
 
 ### 5. Annotate calls
 #### 5.1 Annotate with SnpEff
-
-
-
-
-
-
-# LOH Pipeline
-
-### 1. Run SNV pipeline steps 1, 3.2 & 3.3
-
-### 2. 
