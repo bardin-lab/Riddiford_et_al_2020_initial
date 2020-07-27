@@ -1,18 +1,37 @@
-# library(svBreaks)
+### INIT START #####
+
+library(devtools)
+# devtools::install_github("nriddiford/svBreaks", force = T)
+# devtools::install_github("nriddiford/mutationProfiles", force = T)
+
+devtools::load_all(path = '~/Desktop/script_test/svBreaks')
+devtools::load_all(path = '~/Desktop/script_test/mutationProfiles')
+
+library(svBreaks)
+library(mutationProfiles)
+
 library(tidyverse)
 library(stringr)
 library(bedr)
 
 dfsObj <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/muts.RData")
 load(dfsObj)
-rootDir <- ifelse(dir.exists('/Users/Nick_curie/'), '/Users/Nick_curie/', '/Users/Nick/iCloud/')
-source(paste0(rootDir, 'Desktop/Analysis_pipelines/figs_for_paper_1/R/misc_funs.R'))
+# rootDir <- ifelse(dir.exists('/Users/Nick_curie/'), '/Users/Nick_curie/', '/Users/Nick/iCloud/')
+rootDir <- getwd()
+
+source('R/misc_funs.R')
+
+### INIT END #####
+
 
 # devtools::install(paste0(rootDir, 'Desktop/script_test/svBreaks'))
-devtools::load_all(path = paste0(rootDir, 'Desktop/script_test/svBreaks'))
-devtools::load_all(path = paste0(rootDir, 'Desktop/script_test/mutationProfiles'))
-bedDir = paste0(rootDir, 'Desktop/misc_bed')
-all_samples <- paste0(rootDir, 'Desktop/parserTest/all_combined_23719/all_samples_merged.txt')
+# devtools::load_all(path = paste0(rootDir, 'Desktop/script_test/svBreaks'))
+# devtools::load_all(path = paste0(rootDir, 'Desktop/script_test/mutationProfiles'))
+
+# bedDir = paste0(rootDir, 'Desktop/misc_bed')
+# all_samples <- paste0(rootDir, 'Desktop/parserTest/all_combined_23719/all_samples_merged.txt')
+
+all_samples <- 'data/all_samples_merged.txt'
 
 excluded_events <- read.delim(all_samples) %>% 
   dplyr::filter(status == 'FALSE') %>% 
@@ -31,9 +50,11 @@ chromosomes <- c("2L", "2R", "3L", "3R", "X", "Y", "4")
 ######
 
 ## Need to update this to include INVersion in notch...
-infile <- paste0(rootDir, 'Desktop/parserTest/all_combined_23719/all_bps_merged.txt')
+# infile <- paste0(rootDir, 'Desktop/parserTest/all_combined_23719/all_bps_merged.txt')
+infile <- 'data/all_bps_merged.txt'
 
-attach_info <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/samples_names_conversion.txt')
+# attach_info <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/samples_names_conversion.txt')
+attach_info <- 'data/samples_names_conversion.txt'
 all_sample_names <- read.delim(attach_info, header = F)
 colnames(all_sample_names) <- c("sample", "sample_short", "sample_paper", "sex", "assay")
 
@@ -48,7 +69,7 @@ all_sample_names <- all_sample_names %>% dplyr::filter(!sample %in% excluded_sam
 
 all_hits <- svBreaks::getData(!sample %in% excluded_samples,
                               !paste(sample, event, sep = '_') %in% excluded_events,
-                              infile=infile)
+                              infile=infile, attach_info = 'data/samples_names_conversion.txt')
 
 n_hits <- svBreaks::geneHit(!sample %in% excluded_samples, plot = F, all_samples = all_samples)
 
@@ -72,8 +93,10 @@ notch <- all_hits %>%
   dplyr::select(-key2) %>% 
   ungroup()
 
-snvs <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_snvs.txt')
-indels <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_indels.txt')
+# snvs <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_snvs.txt')
+# indels <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_indels.txt')
+snvs <- 'data/annotated_snvs.txt'
+indels <- 'data/annotated_indels.txt'
 
 male_snvs <- mutationProfiles::getData(infile = snvs, type='snv', sex=='male', !sample %in% excluded_samples,
                                        assay %in% c("neoplasia", "delta-neoplasia"), chrom %in% chromosomes,
@@ -90,8 +113,11 @@ combined_muts <- addPurity(df=combined_muts) %>%
   dplyr::rename(af = allele_frequency, chrom = chr)
 
 dfsObj <- paste0(dirname(rstudioapi::getSourceEditorContext()$path), "/muts.RData")
-save(male_snvs, male_indels, combined_muts, excluded_samples, excluded_events, all_sample_names, notch, non_notch, file = dfsObj)
+# save(male_snvs, male_indels, combined_muts, excluded_samples, excluded_events, all_sample_names, notch, non_notch, file = dfsObj)
+save(file = dfsObj, all_samples, excluded_events, chromosomes, infile, attach_info, all_sample_names, excluded_samples, all_hits, non_notch, notch, male_snvs, male_indels, combined_muts)
 
+
+### ANALYSIS START #####
 
 ########################
 ######   FIG. 2   ######
@@ -123,10 +149,10 @@ all_samples_df %>%
   dplyr::mutate(key = paste(sample, event, sep = '_')) %>%
   dplyr::filter(key %in% nnn) %>% 
   dplyr::select(-sample_old, -key, -sample_short) %>% 
-  write.table(., file = paste0(rootDir, '/Documents/Curie/Documents/SV_paper/Tables/S_table_1.txt'), quote=FALSE, sep='\t', row.names = FALSE)
+  write.table(., file = 'tables/S_table_1.txt', quote=FALSE, sep='\t', row.names = FALSE)
 
 
-sv_count <- non_notch %>% 
+sv_count <- all_hits %>% 
   dplyr::filter(bp_no=='bp1') %>% 
   dplyr::distinct(sample, event, .keep_all=TRUE) %>% 
   dplyr::group_by(sample) %>% 
@@ -139,7 +165,7 @@ median(sv_count$n)
 all_samples_df %>% 
   dplyr::select(-sample_old) %>% 
   dplyr::mutate(status = tidyr::replace_na(status, '')) %>% 
-  write.table(., file = paste0(rootDir, '/Documents/Curie/Documents/SV_paper/Tables/S_table_2.txt'), quote=FALSE, sep='\t', row.names = FALSE)
+  write.table(., file = 'tables/S_table_2.txt', quote=FALSE, sep='\t', row.names = FALSE)
 
 # Supp Table 5 - Excluded CN events
 all_samples_df %>% 
@@ -147,7 +173,7 @@ all_samples_df %>%
   dplyr::mutate(key = paste(sample_old, event, sep = '_')) %>%
   dplyr::filter(key %in% excluded_events) %>% 
   dplyr::select(-sample_old, -key, -sample_short, -sex, -assay) %>% 
-  write.table(., file = paste0(rootDir, '/Documents/Curie/Documents/SV_paper/Tables/S_table_5.txt'), quote=FALSE, sep='\t', row.names = FALSE)
+  write.table(., file = 'tables/S_table_5.txt', quote=FALSE, sep='\t', row.names = FALSE)
 
 
 # Fig 2b: Svs in Notch region
@@ -156,7 +182,6 @@ svBreaks::notchHits(!sample %in% excluded_samples, all_samples_df = all_samples_
 # S.fig 3
 svBreaks::notchHits(!sample %in% excluded_samples, all_samples_df = all_samples_df, from=3.12, to=3.173, show_samples = T, bp_density = T, adjust = 0.1, ticks = 2.5)
 # svBreaks::notchHits(!sample %in% excluded_samples, all_samples = all_samples, from=3.12, to=3.173, show_samples = F, bp_density = T, ticks = 5)
-
 
 ## Write breakpoints +/- 5kb for Notch SVs
 n_hits <- svBreaks::geneHit(!sample %in% excluded_samples, plot = F, all_samples_df = all_samples_df, drivers = c("N"))
@@ -182,7 +207,7 @@ N_breakpoints <- n_hits %>%
                 rend = pos + expand_by) %>% 
   dplyr::select(-bp, -pos) %>% 
   droplevels() %>% 
-  svBreaks::writeBed(df=., outDir = paste0(rootDir, 'Desktop/misc_bed/breakpoints'), name = paste0('notch_breakpoints_', expand_by, '_', today, '.bed'))
+  svBreaks::writeBed(df=., outDir = 'data', name = paste0('notch_breakpoints_', expand_by, '_', today, '.bed'))
 
 # Run `bash extract_breakpoints.sh -i ../notch_breakpoints_5k_10.3.20.bed -n 100`
 
@@ -192,49 +217,39 @@ read.delim(paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpo
   dplyr::mutate(length = V3 - V2) %>% 
   dplyr::summarise(median_length = median(length, na.rm = TRUE))
 
-mappable_regions = '~/Documents/Curie/Data/Genomes/Dmel_v6.12/Mappability/dmel6_mappable.bed'
-chrom_lengths = '~/Documents/Curie/Data/Genomes/Dmel_v6.12/chrom.sizes.txt'
-overlaps <- bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_500_mappable.bed'),
-           regionB = paste0(rootDir, 'Desktop/misc_bed/motifs/motif_1.mappable.bed'),
-           mappable_regions = mappable_regions, n=100, from=2700000, to=3400000, chrom = 'X', plot=F)
+mappable_regions = 'data/dmel6_mappable.bed'
+chrom_lengths = 'data/chrom.sizes.txt' 
+overlaps <- bpRegioneR(regionA = 'data/notch_breakpoint_regions_500_mappable.bed',
+           regionB = 'data/motif_1.mappable.bed',
+           mappable_regions = mappable_regions,
+           n=100, from=2700000, to=3400000, chrom = 'X', plot=F)
 
+# Fig 2d: Enrichment of motif1 in notch breakpoint regions
 plot_bpRegioner(overlaps, bins = 10)
 
 # G4s
-bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_500_mappable.bed'),
-              regionB = paste0(rootDir, 'Desktop/misc_bed/features/nonBform/g4s.mappable.bed'),
-              mappable_regions = mappable_regions, n=100, from=2700000, to=3400000, chrom = 'X', plot=T)
-# SIRs
-bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_500_mappable.bed'),
-                         regionB = paste0(rootDir, 'Desktop/misc_bed/features/nonBform/SIRs.merged.mappable.bed'),
-                         mappable_regions = mappable_regions, n=100, from=2700000, to=3400000, chrom = 'X', plot=T)
-# Cruciform
-bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_500_mappable.bed'),
-           regionB = paste0(rootDir, 'Desktop/misc_bed/features/nonBform/cruciform.merged.mappable.bed'),
-           mappable_regions = mappable_regions, n=100, from=2700000, to=3400000, chrom = 'X', plot=T)
+bpRegioneR(regionA = 'data/notch_breakpoint_regions_500_mappable.bed',
+           regionB = 'data/g4s.mappable.bed', mappable_regions = mappable_regions,
+           n=100, from=2700000, to=3400000, chrom = 'X', plot=F)
 
-# Min G4s
-bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_500_mappable.bed'),
-           regionB = paste0(rootDir, 'Desktop/misc_bed/features/nonBform/min_g4s.bed'),
-           mappable_regions = mappable_regions, n=100, from=2700000, to=3400000, chrom = 'X', plot=T)
 
-# Fig 2d,e: Two characterised events in Notch 
+# Fig 2e,f: Two characterised events in Notch 
 
-# Fig 2f: TEs at Notch breakpoints
-te_in <- paste0(rootDir, 'Documents/Curie/Documents/SV_paper/sv_characterisation/TE_involvement.txt')
-notch_tes <- read.delim(te_in)
-notch_tes <- notch_tes %>% 
-  dplyr::filter(!sample %in% excluded_samples) %>% 
-  dplyr::select(sample, bp1, bp2, type) %>% 
-  dplyr::mutate(type2 = type, 
-                bp1 = as.logical(ifelse(stringr::str_detect(bp1, ''), 1, 0)),
-                bp2 = as.logical(ifelse(stringr::str_detect(bp2, ''), 1, 0))) %>% 
-  dplyr::mutate(has_te = ifelse(bp1 | bp2, TRUE, FALSE)) %>% 
-  dplyr::group_by(type2) %>%
-  dplyr::count(type2, has_te) %>% 
-  dplyr::mutate(total = sum(n), perc = (n/total)*100) %>% 
-  dplyr::filter(has_te) %>% 
-  as.data.frame()
+# # Fig 2f: TEs at Notch breakpoints
+# te_in <- paste0(rootDir, 'Documents/Curie/Documents/SV_paper/sv_characterisation/TE_involvement.txt')
+# notch_tes <- read.delim(te_in)
+# notch_tes <- notch_tes %>% 
+#   dplyr::filter(!sample %in% excluded_samples) %>% 
+#   dplyr::select(sample, bp1, bp2, type) %>% 
+#   dplyr::mutate(type2 = type, 
+#                 bp1 = as.logical(ifelse(stringr::str_detect(bp1, ''), 1, 0)),
+#                 bp2 = as.logical(ifelse(stringr::str_detect(bp2, ''), 1, 0))) %>% 
+#   dplyr::mutate(has_te = ifelse(bp1 | bp2, TRUE, FALSE)) %>% 
+#   dplyr::group_by(type2) %>%
+#   dplyr::count(type2, has_te) %>% 
+#   dplyr::mutate(total = sum(n), perc = (n/total)*100) %>% 
+#   dplyr::filter(has_te) %>% 
+#   as.data.frame()
 
 # plot_tes_at_breakpoints <- function(x){
 #   colours = svBreaks::sv_colours()
@@ -280,8 +295,6 @@ notch_tes <- notch_tes %>%
 ########################
 
 # Fig 4a - Rainfall plot of breakpoints
-# all_hits <- svBreaks::getData(!sample %in% excluded_samples, !paste(sample, event, sep = '_') %in% excluded_events infile=infile)
-
 svBreaks::bpRainfall(bp_data = all_hits, chroms = chromosomes)
 
 n_hits <- svBreaks::geneHit(!sample %in% excluded_samples, plot = F, all_samples = all_samples)
@@ -338,12 +351,11 @@ order <- levels(fct_reorder(gw_sv_types$type2, -gw_sv_types$perc))
 
 combined_sv_types$type2 <- factor(combined_sv_types$type2, levels = order, labels=c("Translocation","Inversion", "Duplication", "Complex", "Deletion", "Tandem Duplication"))
 
-
-
 combined_sv_types <- complete(combined_sv_types, group, type2, fill = list(n=0, perc = 0))
 
 cols <- c("genome-wide" = grey, "Notch" = green)
 
+# Fig 4b: SV types
 combined_sv_types %>% 
   ggplot2::ggplot(.) +
   ggplot2::geom_bar(aes(type2, perc, fill = group), colour = 'transparent', alpha=0.7, stat='identity', position = 'dodge') + 
@@ -359,9 +371,9 @@ combined_sv_types %>%
   )
 
 
-noR1 <- non_notch %>% dplyr::filter(sample != "A373R1")
+# noR1 <- non_notch %>% dplyr::filter(sample != "A373R1")
 # noR1 <- transform_types(noR1)
-noR1_samples <- c("A373R1", excluded_samples)
+# noR1_samples <- c("A373R1", excluded_samples)
 # Get SV tpes per sample
 
 sv_data <- svTypes(!sample %in% excluded_samples, bp_data = non_notch, plot = F)
@@ -383,17 +395,15 @@ sv_df2$sample <- fct_reorder(sv_df2$sample, -sv_df2$sv_count)
 # Sup fig 4a - af of mutations by type
 gghistogram(non_notch, x = "af", color = "type2", fill= "type2", alpha = 0.5,
             add = "median", bins=50, title="VAF distribution of SV types",
-            ylab="Number of SVs", xlab = "VAF",
-            ggtheme = theme_minimal())
-
+            ylab="Number of SVs", xlab = "VAF", ggtheme = theme_minimal())
 
 # Fig 4c - Protein coding mutations (non-Notch)
-snv_indel_df <- read.csv(paste0(rootDir, 'Desktop/final_analysis/annotated_mutations_filt.csv'))
+snv_indel_df <- read.csv('data/annotated_mutations_filt.csv')
 
 # Supp Table 3 - Protein coding mutations
 snv_indel_df %>% 
   dplyr::select(-sample_old, -sample_short, -assay, -sex) %>% 
-  write.table(., file = paste0(rootDir, '/Documents/Curie/Documents/SV_paper/Tables/S_table_3.txt'), quote=FALSE, sep='\t', row.names = FALSE)
+  write.table(., file = 'tables/S_table_3.txt', quote=FALSE, sep='\t', row.names = FALSE)
 
 # tally_impacts <- ann_data %>%
 #   dplyr::filter(!is.na(impact)) %>%
@@ -425,20 +435,19 @@ tally_impacts$sample <- factor(tally_impacts$sample, levels = levels(sv_df2$samp
 median(tally_impacts$n)
 table(tally_impacts$impact)
 
-# Fig 4e - coding consequences
-tally_impacts %>% 
-  dplyr::group_by(impact) %>% 
-  dplyr::summarise(total = sum(type_count)) %>% 
-  ggplot2::ggplot(.) + 
-  ggplot2::geom_bar(aes(fct_reorder(impact, -total), total), colour = grey, fill = grey, alpha=0.6, stat = 'identity') +
-  cleanTheme() +
-  theme(
-    axis.title.y = element_text(size=18),
-    panel.grid.major.y = element_line(color = "grey80", size = 0.5, linetype = "dotted"),
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size=15),
-    axis.title.x = element_blank(),
-    legend.position = 'none'
-  )
+# tally_impacts %>% 
+#   dplyr::group_by(impact) %>% 
+#   dplyr::summarise(total = sum(type_count)) %>% 
+#   ggplot2::ggplot(.) + 
+#   ggplot2::geom_bar(aes(fct_reorder(impact, -total), total), colour = grey, fill = grey, alpha=0.6, stat = 'identity') +
+#   cleanTheme() +
+#   theme(
+#     axis.title.y = element_text(size=18),
+#     panel.grid.major.y = element_line(color = "grey80", size = 0.5, linetype = "dotted"),
+#     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size=15),
+#     axis.title.x = element_blank(),
+#     legend.position = 'none'
+#   )
 
 
 colours <- sv_colours()
@@ -474,12 +483,7 @@ p2 <- p2 + cleanTheme() +
     legend.position = 'none'
     )
 
-
-# cowplot::plot_grid(p1 + coord_flip(),
-#                    p2 + coord_flip(),
-#                    align="h", rel_widths = c(1, 1))
-
-
+# Fig4c/d mutations per sanmple
 cowplot::plot_grid(p2, p1, align="v", axis = 'b', nrow = 2)
 
 # Fig 3e - non-Notch TEs at breakpoints
@@ -521,47 +525,16 @@ cowplot::plot_grid(p2, p1, align="v", axis = 'b', nrow = 2)
 ########################
 bedDir = "/Users/Nick_curie/Desktop/misc_bed"
 
-source(paste0(rootDir, 'Desktop/Analysis_pipelines/figs_for_paper_1/R/enrichment_funs.R'))
-
-# mutationProfiles::rainfall(snv_data = combined_muts, chroms = chromosomes)
-
+source('R/enrichment_funs.R')
 
 ####################
 ## SNVS + INDELS  ##
 ####################
 
-# devtools::install(paste0(rootDir, 'Desktop/script_test/mutationProfiles'))
-devtools::load_all(path = paste0(rootDir, 'Desktop/script_test/mutationProfiles'))
-
-snvs <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_snvs.txt')
-indels <- paste0(rootDir, 'Desktop/script_test/mutationProfiles/data/annotated_indels.txt')
-
-male_snvs <- mutationProfiles::getData(infile = snvs, type='snv', sex=='male', !sample %in% excluded_samples,
-                                       assay %in% c("neoplasia", "delta-neoplasia"), chrom %in% chromosomes,
-                                       attach_info = attach_info)
-
-male_indels <- mutationProfiles::getData(infile = indels, type='indel', sex=='male', !sample %in% excluded_samples,
-                                         assay %in% c("neoplasia", "delta-neoplasia"), chrom %in% chromosomes,
-                                         attach_info = attach_info )
-
-# male_snvs <- male_snvs %>%
-#   dplyr::rename(sample_old = sample,
-#                 sample = sample_paper) %>%
-#   dplyr::select(sample, everything())
-# 
-# male_indels <- male_indels %>%
-#   dplyr::rename(sample_old = sample,
-#                 sample = sample_paper) %>%
-#   dplyr::select(sample, everything())
-
-combined_muts <- plyr::join(male_snvs, male_indels, type='full')
-
-
 ## Fig 5 S. 1 - muts in genes by expression
 r <- hits_in_genes(sample != "A373R1", df = non_notch, bedDir = paste(bedDir, '/umr_gene_features/paper/', sep=''), out_file='bps_in_genes.txt')
 bps_in_genes <- r[[2]]
 bps_in_genes$mut <- 'sv'
-
 
 r <- hits_in_genes(sample != "A373R1", df = male_snvs, bedDir = paste(bedDir, '/umr_gene_features/paper/', sep=''), out_file='snvs_in_genes.txt')
 snvs_in_genes <- r[[2]]
@@ -611,7 +584,7 @@ comb <- comb %>%
 comb$group = factor(comb$group, levels=c("sv","snv", "indel"), labels=c("SV","SNV", "INDEL")) 
 comb$feature = factor(comb$feature, levels=c("gene", "5UTR", "3UTR", "CDS", "Intronic", "Intergenic"), labels=c("Geneic", "5'UTR", "3'UTR", "CDS", "Intron", "Intergenic")) 
 
-# Figure 5 a - mutations in gene features
+# Fig5 a - mutations in gene features
 gf_exp_grouped <- ggbarplot(comb, x = "feature", y = "Log2FC",
                             fill = "group", color = "transparent", group = "group", palette =c(blue, yellow, red, grey), alpha = 0.6, 
                             label = 'label', lab.vjust = 2,
@@ -620,13 +593,10 @@ gf_exp_grouped <- ggbarplot(comb, x = "feature", y = "Log2FC",
 
 ggpar(gf_exp_grouped, ylim = c(-2.2,2.2))
 
-
 facet(gf_exp_grouped, facet.by = 'group', nrow = 1)
 
 
-
-
-# Modencode enriched
+# Fig5 d Modencode enriched
 d <- run_all(sample != "A373R1", bps = non_notch, snvs = male_snvs, indels = male_indels, dir = paste0(bedDir, '/enriched/merged/'))
 plot_all(d)
 
@@ -634,7 +604,7 @@ plot_all(d)
 d <- run_all(sample != "A373R1", bps = non_notch, snvs = male_snvs, indels = male_indels, dir = paste0(bedDir, '/Manon_2020/deseq/'))
 plot_all(d)
 
-# repeat seqs
+# Fig5 b repeats
 d <- run_all(sample != "A373R1", bps = non_notch, snvs = male_snvs, indels = male_indels, dir = paste0(bedDir, '/repeats/mappable/'))
 plot_all(d)
 
@@ -662,8 +632,7 @@ all_mutations <- bind_rows(list(bps_as_snvs, combined_muts)) %>%
   dplyr::distinct(chrom, pos)
 
 
-dist <- run_reldist(a = all_mutations,
-                    b = paste0(bedDir, '/repeats/mappable/combined/repeats_merged.bed'),
+dist <- run_reldist(a = all_mutations, b = 'data/repeats_merged.bed',
                     chroms = chromosomes, verbose = FALSE, type='snv', print = FALSE, sim=T)
 
 plot_reldist(dist)
@@ -675,23 +644,20 @@ plot_reldist(dist)
 ########################
 
 # Fig 6c & d
-source(paste0(rootDir, 'Desktop/script_test/svSupport/scripts/plotFreq.R'))
+source('R/plotFreq.R')
 
 samples_with_no_N_sv <- c(excluded_samples, 'A373R9', 'B241R43', 'B241R49', 'D197R05')
 
 read.delim(all_samples) %>% 
   dplyr::filter(!paste(sample, event, sep = '_') %in% excluded_events) %>% 
-  write.table(., file = paste0(rootDir, '/Desktop/final_analysis/all_samples_merged_filt.txt'), quote=FALSE, sep='\t', row.names = FALSE)
+  write.table(., file = 'data/all_samples_merged_filt.txt', quote=FALSE, sep='\t', row.names = FALSE)
 
-plot_tumour_evolution(all_samples = paste0(rootDir, '/Desktop/final_analysis/all_samples_merged_filt.txt'), 
-                      !sample %in% samples_with_no_N_sv, 
-                      tes = FALSE, 
-                      annotate_with = paste0(rootDir, 'Desktop/gene2bed/dna_damage_merged.bed'))
+plot_tumour_evolution(all_samples = 'data/all_samples_merged_filt.txt', !sample %in% samples_with_no_N_sv, 
+                      tes = FALSE, annotate_with = 'data/dna_damage_merged.bed')
 
-tumour_evolution <- plot_tumour_evolution(all_samples = paste0(rootDir, '/Desktop/final_analysis/all_samples_merged_filt.txt'), 
+tumour_evolution <- plot_tumour_evolution(all_samples = 'data/all_samples_merged_filt.txt', 
                                           !sample %in% samples_with_no_N_sv, 
-                                          tes = FALSE, annotate_with = paste0(rootDir, 'Desktop/gene2bed/merged_groups.bed'),
-                                          plot=F)
+                                          tes = FALSE, annotate_with = 'data/dna_damage_merged.bed', plot=F)
 
 notch_hits <- tumour_evolution[[1]]
 all_muts <- tumour_evolution[[2]]
@@ -726,7 +692,7 @@ ggplot(all_muts, aes(time, colour = group)) +
   guides(size = FALSE, colour = FALSE) 
 
 
-addPurity <- function(df, purity_file='/Users/Nick_curie/Desktop/script_test/svSupport/data/tumour_purity.txt'){
+addPurity <- function(df, purity_file='data/tumour_purity.txt'){
   purity <- read.delim(purity_file, header = F)
   colnames(purity) <- c('sample', 'purity')
   
@@ -745,7 +711,7 @@ addPurity <- function(df, purity_file='/Users/Nick_curie/Desktop/script_test/svS
 }
 
 # Pre and post Notch hits
-snv_indel_df <- read.csv(paste0(rootDir, 'Desktop/final_analysis/annotated_mutations_filt.csv')) %>% 
+snv_indel_df <- read.csv('data/annotated_mutations_filt.csv') %>% 
   dplyr::rename(sample_new = sample,
                 sample = sample_old,
                 allele_frequency = af) 
@@ -757,9 +723,8 @@ snv_indel_df <- addPurity(df=snv_indel_df) %>%
 
 snv_indel_df %>% 
   dplyr::select(-c(sample_short:af_old, purity)) %>% 
-  write.csv(., file = '~/Desktop/final_analysis/annotated_mutations_filt_pur_adj.csv', row.names = FALSE)
+  write.csv(., file = 'data/annotated_mutations_filt_pur_adj.csv', row.names = FALSE)
 
-# Here
 notch_svs <- notch_hits %>% dplyr::select(sample, highest_n)
 
 coding2notch <- plyr::join(snv_indel_df, notch_svs, c("sample"), type = "left") %>% 
@@ -823,7 +788,6 @@ gw_clonality_counts <- complete(gw_clonality_counts, clonality, type, fill = lis
 gw_clonality_counts$clonality = factor(gw_clonality_counts$clonality, levels=c("pre", "post"), labels=c("Pre-Notch", "Post-Notch")) 
 gw_clonality_counts$type = factor(gw_clonality_counts$type, levels=c("del", "snv", "ins"), labels=c("Deletion", "SNV", "Insertion")) 
 
-
 gw_clonality_counts %>% 
   ggplot2::ggplot(., aes(fct_reorder(type, -perc), perc, group=clonality, fill=type, label=n)) +
   ggplot2::geom_bar(aes(alpha=clonality), stat='identity', position = 'dodge') +
@@ -838,196 +802,3 @@ gw_clonality_counts %>%
     axis.title.x = element_blank(),
     axis.title.y =element_text(size=15)
   )
-
-
-###### stats #########
-
-widedf <- gw_clonality_counts %>% select(-n) %>% spread(key=clonality, value=perc) %>% as.data.frame()
-row.names(widedf) <- widedf$type
-widedf$type <- NULL
-library("gplots")
-# 1. convert the data as a table
-dt <- as.table(as.matrix(widedf))
-# 2. Graph
-balloonplot(t(dt), main ="housetasks", xlab ="", ylab="",
-            label = FALSE, show.margins = FALSE)
-
-widedf %>%
-  rowwise() %>% 
-  mutate(
-    test_stat = chisq.test(c(`Pre-Notch`, `Post-Notch`))$statistic,
-    p_val = chisq.test(c(`Pre-Notch`, `Post-Notch`))$p.value
-  )
-
-chisq <- chisq.test(widedf)
-chisq
-
-library(corrplot)
-corrplot(chisq$residuals, is.cor = FALSE)
-
-
-############
-
-
-d1 <- bpRegionEnrichment(sample_old != "A373R1", clonality =='pre', bp_data = rel2notch, dataType='mutationProfiles', bedDir = paste0(bedDir, '/enriched/merged/'), plot=F) %>% 
-  dplyr::mutate(group = 'pre-notch')
-
-d2 <- bpRegionEnrichment(sample_old != "A373R1", clonality == 'post', bp_data = rel2notch, dataType='mutationProfiles', bedDir = paste0(bedDir, '/enriched/merged/'), plot=F) %>% 
-  dplyr::mutate(group = 'post-notch')
-
-plot_all(l = list(d1, d2)) 
-
-
-mappable_regions = '~/Documents/Curie/Data/Genomes/Dmel_v6.12/Mappability/dmel6_mappable.bed'
-chrom_lengths = '~/Documents/Curie/Data/Genomes/Dmel_v6.12/chrom.sizes.txt'
-bpRegioneR(regionA = paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_CFS/notch_breakpoint_regions_5k_mappable.bed'),
-           regionB = paste0(rootDir, 'Desktop/misc_bed/motifs/motif_1.mappable.bed'),
-           mappable_regions = mappable_regions, n=5000, from=2700000, to=3400000)
-
-
-# Get svs in Notch
-notch <- all_hits %>% 
-  dplyr::mutate(key2 = paste0(sample, "_", event)) %>% 
-  dplyr::group_by(sample, event) %>% 
-  dplyr::filter(key2 %in% n_hits$key) %>% 
-  dplyr::select(-key2) %>% 
-  droplevels() %>% 
-  ungroup()
-
-
-write_breakpoints <- function(..., x, file_name='breakpoints.bed', outDir=paste0(rootDir, 'Desktop/misc_bed/breakpoints')){
-  x <- x %>% 
-    dplyr::filter(...) %>% 
-    dplyr::rename(start = bp) %>% 
-    dplyr::mutate(end = start+1) %>%
-    dplyr::distinct(event, sample, chrom, start, .keep_all=T) %>% 
-    dplyr::mutate(info = paste(sample, event, type, bp_no, sep="_")) %>% 
-    dplyr::select(chrom, start, end, info) %>% 
-    svBreaks::writeBed(df= ., name = file_name, outDir=outDir)
-}
-
-write_breakpoints(x=notch, file_name = 'notch_breakpoints_30.4.20.bed')
-
-
-
-
-
-# Fix for non-existing dir
-# R39 <- notch %>% dplyr::filter(sample == 'B241R39')
-# svBreaks::writeBed(df=R39, svBreaks = T, name = 'R39_notch_svs.bed', outDir = paste0(desktop, '/misc_bed/breakpoints/')
-# svBreaks::writeBed(df = all_dels,  svBreaks = T, name = 'all_prec_dels.bed', outDir = paste0(desktop, '/misc_bed/breakpoints')
-
-svBreaks::writeBed(df=notch, svBreaks = T, name = 'Notch_svs.bed', outDir = paste0(rootDir, 'Desktop/misc_bed/breakpoints/'))
-svBreaks::writeBed(df=non_notch, svBreaks = T, name = 'non-Notch_svs.bed', outDir = paste0(rootDir, 'Desktop/misc_bed/breakpoints/'))
-
-# Fig 2a: sv count per sample
-# svBreaks::bpStats(bp_data = non_notch, sample != "A37 3R1")
-svBreaks::svTypes(bp_data = non_notch)
-
-noR1 <- all_hits %>% dplyr::filter(!sample %in% c("A373R1", "D106R25"))
-
-svBreaks::bpRainfall(bp_data = all_hits, chroms = c("2L", "2R", "3L", "3R", "X", "Y", "4"))
-
-non_notch_slimmed <- non_notch %>% 
-  dplyr::mutate(type2 = as.character(ifelse(stringr::str_detect(type, 'COMPLEX'), 'COMPLEX', as.character(type))),
-                allele_frequency = af) %>% 
-  dplyr::mutate(type2 = factor(type2))
-
-non_notch_noR1 <- non_notch_slimmed %>% dplyr::filter(sample != 'A373R1') %>% droplevels()
-
-nn <- svBreaks::tally_hits(bp_data = non_notch_noR1, plot=F, freq = T, all_samples = all_samples)
-
-n$group = "Notch"
-nn$group = 'Other'
-
-n$class <- factor(n$class)
-missingclasses = list()
-df <- merge(n,nn, all = T)
-
-sv_classes <- levels(non_notch_slimmed$type2)
-
-for(i in 1:length(sv_classes)){
-  if(!(sv_classes[i] %in% levels(n$class))){
-    missingclasses[i] <- sv_classes[i]
-  }
-}
-
-missingclasses <- plyr::compact(missingclasses)
-dat <- data.frame(class = c(levels(n$class), paste(missingclasses)),
-                  group = "Notch",
-                  frequency = c(n$frequency, rep(0, length(missingclasses))),
-                  count = c(n$count, rep(0, length(missingclasses)))) 
-
-df <- merge(dat,nn, all = T)
-
-df <- df %>% 
-  dplyr::mutate(class = as.character(ifelse(class == "BND", "INV", as.character(class))))
-
-p <- ggplot(df) + geom_bar(aes(fct_reorder(class, -frequency), frequency, fill = group, group=group), stat="identity", width=.9, alpha=0.7, position = "dodge")
-# geom_bar(stat="identity", width=.5, position = "dodge")
-p <- p + scale_y_continuous('Percent')
-p <- p + cleanTheme() +
-  theme(
-    axis.title.x = element_blank(),
-    panel.grid.major.y = element_line(color = "grey80", size = 0.5, linetype = "dotted"),
-    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size=20)
-  )
-p <- p + scale_fill_manual(values = c("#0073C299", "#E7B800"))
-p <- p + scale_colour_manual(values = c("#0073C299", "#E7B800"))
-# p <- p + facet_wrap(~group, ncol = 1)
-p
-
-
-
-### mechanisms notch vs non-notch
-nn_mechs <- svBreaks::mechansimSize(bp_data = non_notch, plot = F)
-n_mechs <- mechansimSize(bp_data = notch, plot = F)
-
-n_mechs$group <- 'Notch'
-nn_mechs$group <- 'Other'
-n_nn_mechs <- merge(n_mechs, nn_mechs, all = T)
-
-mechs <- n_nn_mechs %>% 
-  dplyr::group_by(group) %>%
-  dplyr::mutate(mech_count = n()) %>%
-  dplyr::mutate(freq = mech_count / sum(mech_count)) %>% 
-  dplyr::ungroup()
-
-# proportion of mechanism in Notch vs non-notch
-p <- ggplot(mechs)
-p <- p + geom_bar(aes(x=fct_reorder(mechanism, -freq), y = ..prop..*100, fill = group, colour=group, group = group),  width=.9, alpha=0.7, position = "dodge")
-p <- p + scale_y_continuous('Percent')
-# p <- p + facet_wrap(~group, ncol = 1)
-p <- p + slideTheme() +
-  theme(
-    axis.title.x = element_blank(),
-    panel.grid.major.y = element_line(color = "grey80", size = 0.5, linetype = "dotted"),
-    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size=20)
-  )
-p <- p + scale_fill_manual(values = c("#0073C299", "#E7B800"))
-p <- p + scale_colour_manual(values = c("#0073C299", "#E7B800"))
-
-
-p
-
-ggbarplot(mechs, x = "mechanism", y = "freq", sort.val = "desc",
-                    fill = "group", color = "group", palette = "jco", alpha = 0.8, 
-                    x.text.angle = 90)
-
-
-p2 <- ggplot(mechs) + geom_bar(aes(y = freq, x = group, fill = mechanism), stat="identity")
-p2 <- p2 + scale_y_continuous('Frequency')
-p2 <- p2 + slideTheme() +
-  theme(
-    axis.title.x = element_blank(),
-    panel.grid.major.y = element_line(color = "grey80", size = 0.5, linetype = "dotted"),
-    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size=20)
-  )
-
-p2
-
-# microhomology length
-svBreaks::micromologyPlot(bp_data = all_hits, stringr::str_detect(type, 'COMPLEX'))
-
-notch_bps <- paste0(rootDir, 'Desktop/misc_bed/breakpoints/Notch_svs.bed')
-non_notch_bps <- paste0(rootDir, 'Desktop/misc_bed/breakpoints/non-Notch_svs.bed')

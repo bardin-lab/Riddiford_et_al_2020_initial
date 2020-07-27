@@ -112,7 +112,8 @@ done
 ```{bash}
 out_dir=~/Desktop/final_analysis/filtered/summary/merged
 for file in ${out_dir}/*_snv_added.txt
-  do stem=$(basename "${file}")
+  do
+  stem=$(basename "${file}")
   output_base=$(echo $stem | cut -d '_' -f 1)
   echo "Running for sample $output_base"
   if [ -f $out_dir/${output_base}_mh.txt ]
@@ -187,3 +188,14 @@ rm *_hit_genes.txt
 
 ### 5. Annotate calls
 #### 5.1 Annotate with SnpEff
+
+
+
+
+
+
+# LOH Pipeline
+
+### 1. Run SNV pipeline steps 1, 3.2 & 3.3
+
+### 2.
